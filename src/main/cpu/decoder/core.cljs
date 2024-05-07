@@ -13,8 +13,7 @@
    :hex86 {:op :add :target :a :source :hl-pointer :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
    :hex87 {:op :add :target :a :source :a :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
    ;----- ADD continue ------
-   :hexC6 {:op :add :target :a :source :n8 :flags :all :byte-length 1 :duration 4}
-   :hexC6 {:op :add :target :SP :source :e8 :flags :all :byte-length 1 :duration 4}
+   :hexC6 {:op :add :target :a :source :n8 :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
    })
 
 (defn get-lower-nibble [num]

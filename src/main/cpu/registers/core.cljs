@@ -59,7 +59,7 @@
 (def reg-SP ;16-bit
   (atom {:reg def-reg-SP-start-location}))
 
-
+@reg-PC
 (defn swap-byte! [atom-reg new-value]
   (swap! atom-reg assoc :reg new-value))
 
@@ -83,6 +83,30 @@
                       (bit-or (:reg @atom-reg-f)))]
     (swap-byte! atom-reg-f reg-value)))
 
+(defn clear-zero-flag! [atom-reg-f]
+  (let [reg-value (-> (byte 0x80)
+                      (bit-not)
+                      (bit-and (:reg @atom-reg-f)))]
+    (swap-byte! atom-reg-f reg-value)))
+
+(defn clear-half-carry-flag! [atom-reg-f]
+  (let [reg-value (-> (byte 0x20)
+                       (bit-not)
+                       (bit-and (:reg @atom-reg-f)))]
+     (swap-byte! atom-reg-f reg-value)))
+
+(defn clear-carry-flag! [atom-reg-f]
+  (let [reg-value (-> (byte 0x10)
+                       (bit-not)
+                       (bit-and (:reg @atom-reg-f)))]
+     (swap-byte! atom-reg-f reg-value)))
+
+(defn clear-subtraction-flag! [atom-reg-f]
+  (let [reg-value (-> (byte 0x40)
+                       (bit-not)
+                       (bit-and (:reg @atom-reg-f)))]
+     (swap-byte! atom-reg-f reg-value)))
+
 (defn clear-flags! [atom-reg-f]
   (swap-byte! atom-reg-f (byte 0x00)))
 
@@ -94,12 +118,12 @@
   (->> (dec (:reg @atom-reg))
        (swap-byte! atom-reg)))
 
-(defn addition-is-carry? [reg value]
-  (-> (+ reg value)
+(defn addition-is-carry? [target value]
+  (-> (+ target value)
       (> (byte 0xFF))))
 
-(defn addition-is-half-carry? [reg value]
-  (let [clear-high-reg (bit-and (byte 0x0F) reg)
+(defn addition-is-half-carry? [target value]
+  (let [clear-high-reg (bit-and (byte 0x0F) target)
         clear-high-val (bit-and (byte 0x0F) value)]
     (->
      (+ clear-high-reg clear-high-val)
@@ -150,3 +174,73 @@
   (set-16-bit-reg! b16value reg-b reg-c))
 (defn set-reg-de! [b16value]
   (set-16-bit-reg! b16value reg-d reg-e))
+
+(defn inc-program-counter! []
+  (increment-register! reg-PC))
+
+(defn get-reg [switch]
+  (case switch
+    :a (:reg @reg-a)
+    :b (:reg @reg-b)
+    :c (:reg @reg-c)
+    :d (:reg @reg-d)
+    :e (:reg @reg-e)
+    :f (:reg @reg-f)
+    :h (:reg @reg-h)
+    :l (:reg @reg-l)
+    :af (get-reg-af)
+    :hl (get-reg-hl)
+    :bc (get-reg-bc)
+    :de (get-reg-de)
+    :sp (:reg @reg-SP)
+    :pc (:reg @reg-PC)
+    (keyword (str "ErrorNotFound!" switch))))
+
+(defn set-reg! [switch value]
+  (case switch
+    :a (swap-byte! reg-a value)
+    :b (swap-byte! reg-b value)
+    :c (swap-byte! reg-c value)
+    :d (swap-byte! reg-d value)
+    :e (swap-byte! reg-e value)
+    :f (swap-byte! reg-f value)
+    :h (swap-byte! reg-h value)
+    :l (swap-byte! reg-l value)
+    :af (set-reg-af! value) 
+    :hl (set-reg-hl! value) 
+    :bc (set-reg-bc! value) 
+    :de (set-reg-de! value)
+    :sp (swap-byte! reg-SP value)
+    :pc (swap-byte! reg-PC value)
+    (keyword (str "ErrorNotFound!" switch))))
+
+
+(defn set-clear-flags!
+  "Set flags to :none if no changes are made"
+  [zero carry half-carry sub]
+  (when (= zero :set)
+    (set-zero-flag! reg-f))
+  (when (= zero :clear)
+    (clear-zero-flag! reg-f))
+  (when (= carry :set)
+    (set-carry-flag! reg-f))
+  (when (= carry :clear)
+    (clear-carry-flag! reg-f))
+  (when (= half-carry :set)
+    (set-half-carry-flag! reg-f))
+  (when (= half-carry :clear)
+    (clear-half-carry-flag! reg-f))
+  (when (= sub :set)
+    (set-subtraction-flag! reg-f))
+  (when (= sub :clear)
+    (clear-subtraction-flag! reg-f)))
+
+(defn printAllRegistersAndFlags
+  "Helper function. For debugging"
+  []
+  (let [a (get-reg :a)
+        b (get-reg :b)
+        c (get-reg :c)
+        d (get-reg :d)
+        e (get-reg :e)
+        ]))
