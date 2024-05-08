@@ -1,38 +1,38 @@
-(ns cpu.decoder.core)
+(ns cpu.decoder.core
+  (:require [cpu.registers.core :as reg]
+            [cpu.decoder.opcodes :as codes]))
+
+(comment
+  "Flags can have following values:
+   :clear - set to zero
+   :set - set to 1
+   :none - do nothing
+   :calc - determine value through calculation
+   "
+  )
 
 
-(def hex-instructions
-  {:hex00 {:op :nop :flags [] :byte-length 1 :duration 4}
-   ;----- ADD 8x ------
-   :hex80 {:op :add :target :a :source :b :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex81 {:op :add :target :a :source :c :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex82 {:op :add :target :a :source :d :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex83 {:op :add :target :a :source :e :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex84 {:op :add :target :a :source :h :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex85 {:op :add :target :a :source :l :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex86 {:op :add :target :a :source :hl-pointer :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   :hex87 {:op :add :target :a :source :a :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   ;----- ADD continue ------
-   :hexC6 {:op :add :target :a :source :n8 :flags [:z :clear-n :c :h] :byte-length 1 :duration 4}
-   })
+(comment
+  
+  "IMPORTANT!!!
+   
+   ALU instructions (ADD, ADC, SUB, SBC, AND, XOR, OR, and CP) can be written with the left-hand side A omitted.
+Thus for example ADD A, B has the alternative mnemonic ADD B, and CP A, $F has the alternative mnemonic CP $F. 
+   "
+  )
 
-(defn get-lower-nibble [num]
-  (bit-and (byte 0x0F) num))
-
-(defn get-higher-nibble [num]
-  (bit-shift-right num 4))
 
 (defn convert-to-hex-key [num]
-  (let [h (get-higher-nibble num)
-        l (get-lower-nibble num)
+  (let [h (reg/get-higher-nibble num)
+        l (reg/get-lower-nibble num)
         name (str "hex" h l)]
     (keyword name)))
 
 (defn get-instruction [num]
   (let [res (-> (convert-to-hex-key num)
-                (hex-instructions))]
+                (codes/opcodes))]
     (if (= res nil)
       :ErrorNotFound!
       res)))
 
-(get-instruction (byte 0x00))
+(get-instruction (byte 0x86))

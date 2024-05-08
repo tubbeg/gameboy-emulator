@@ -43,6 +43,8 @@
 (def memory
   (atom {:mem memory-init}))
 
+
+
 (println clock-frequency)
 
 (defn set-to-next-instruction-pointer! [])
