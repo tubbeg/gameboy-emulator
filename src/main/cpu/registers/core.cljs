@@ -50,7 +50,7 @@
 (def flag-register :F)
 (def accumulator :A)
 (def program-counter :PC)
-(def stack-counter :SP)
+(def stack-pointer :SP)
 (def AF :AF)
 (def DE :DE)
 (def BC :BC)
@@ -61,6 +61,16 @@
 (def E :E)
 (def H :H)
 (def L :L)
+(def n8 :n8)
+(def e8 :e8)
+
+
+(def virtual-registers-list
+  (list
+   AF
+   DE
+   BC
+   HL))
 
 (def registers
   {accumulator init-byte
@@ -72,8 +82,37 @@
    H init-byte
    L init-byte
    program-counter init-byte
-   stack-counter init-byte})
+   stack-pointer init-byte})
 
+
+(defn is-register [reg]
+  (-> reg
+      (registers)
+      (not= nil)))
+
+(defn is-8bit-register [reg]
+  (println "Checking reg" reg)
+  (cond
+    (= reg accumulator) true
+    (= reg B) true
+    (= reg C) true
+    (= reg D) true
+    (= reg E) true
+    (= reg flag-register) true
+    (= reg H) true
+    (= reg L) true
+    :else false))
+
+(defn is-16bit-register [reg]
+  (println "Checking reg" reg)
+  (cond
+    (= reg AF) true
+    (= reg BC) true
+    (= reg DE) true
+    (= reg HL) true
+    (= reg program-counter) true
+    (= reg stack-pointer) true
+    :else false))
 
 (def zero-bit (byte 0x80))
 (def carry-bit (byte 0x10))
@@ -347,6 +386,22 @@
    (-> registers
        (L))))
 
+(defn set-reg-HL 
+  "Example of return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
+  [bit16-val registers]
+  (let [high (get-high-16-bit bit16-val)
+        low (get-low-16-bit bit16-val)]
+    (as->
+     (update-register high registers H) regs
+      (update-register low regs L))))
+
+(defn get-virtual16b-reg [reg registers]
+  (case reg
+    AF (get-reg-AF registers)
+    BC (get-reg-BC registers)
+    DE (get-reg-DE registers)
+    HL (get-reg-HL registers)))
+
 (defn inc-program-counter [regs]
   (increment-register regs program-counter))
 
@@ -418,7 +473,7 @@
         hl (get-reg-HL registers)
         de (get-reg-DE registers)
         pc (program-counter registers)
-        sp (stack-counter registers)
+        sp (stack-pointer registers)
         half-carry (get-half-carry-bit registers)
         carry (get-carry-bit registers)
         zero (get-zero-bit registers)

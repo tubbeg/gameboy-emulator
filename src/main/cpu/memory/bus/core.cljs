@@ -16,15 +16,21 @@
       (error-msg nil)
       (first coll))))
 
-(defn read-byte [memory adress] ;index should be 16-bit
-  (-> (filter #(= (:adress %) adress) memory)
+(def adress :adress)
+
+
+(defn read-byte [memory _adress] ;index should be 16-bit
+  (-> (filter #(= (adress %) _adress) memory)
       (error-check)))
+
+(defn create-data [data _adress]
+  {adress _adress :data data})
 
 (defn create-memory [size]
   (for [i (range size)]
-    {:adress i :data 0}))
+    (create-data 0 i)))
 
-(defn set-data-in-memory [adress memory data]
-  (map #(case (:adress %)
-          adress {:adress adress :data data}
+(defn set-data-in-memory [_adress memory data]
+  (map #(case (adress %)
+          _adress (create-data _adress data)
           %) memory))
