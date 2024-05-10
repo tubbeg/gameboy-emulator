@@ -1,6 +1,6 @@
 (ns emulator.core
   (:require [clojure.math :as m]
-            [cpu.registers.core :refer [reg-PC]]))
+            [cpu.registers.core :as reg]))
 
 (comment
   "Disregard audio for now-
@@ -56,14 +56,6 @@
 (defn execute-instruction! [])
 
 (def abort-flag (atom {:abort false}))
-
-(defn cpu-main-loop []
-  (when (not ((:abort @abort-flag)))
-    (do
-      (set-to-next-instruction-pointer!)
-      (fetch-data! @reg-PC)
-      (execute-instruction!)))
-  :done)
 
 
 

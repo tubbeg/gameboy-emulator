@@ -29,18 +29,9 @@
 ; Essentially, there are 16-bit virtual registers
 ; For example: register-hl
 
+(def init-byte (byte 0x00))
 
-(def reg-a ;accumulator
-  (atom {:reg def-byte}))
-(def reg-b
-  (atom {:reg def-byte}))
-(def reg-c
-  (atom {:reg def-byte}))
-(def reg-d
-  (atom {:reg def-byte}))
-(def reg-e
-  (atom {:reg def-byte}))
-(def reg-f ; flag register
+; flag register
   ; the last 4 bits are always zero
   ; 0bxxxx0000
   ; bit 7 zero flag ; dec 8
@@ -48,101 +39,136 @@
   ; bit 5 half carry ; dec 2
   ; bit 4 carry ; dec 1
   ; 0bzshc0000
-  (atom {:reg (byte 0x00)}))
-(def reg-h
-  (atom {:reg def-byte}))
-(def reg-l
-  (atom {:reg def-byte}))
 
-(def reg-PC ;16-bit
-  (atom {:reg def-reg-PC-start-location}))
-(def reg-SP ;16-bit
-  (atom {:reg def-reg-SP-start-location}))
 
-@reg-PC
-(defn swap-byte! [atom-reg new-value]
-  (swap! atom-reg assoc :reg new-value))
+(comment "
+          Removed all mutable state! No more atoms.
 
-(defn get-carry-bit []
+          Should reduce the amount of bugs
+          ")
+
+(def flag-register :F)
+(def accumulator :A)
+(def program-counter :PC)
+(def stack-counter :SP)
+(def AF :AF)
+(def DE :DE)
+(def BC :BC)
+(def HL :HL)
+(def B :B)
+(def C :C)
+(def D :D)
+(def E :E)
+(def H :H)
+(def L :L)
+
+(def registers
+  {accumulator init-byte
+   B init-byte
+   C init-byte
+   D init-byte
+   E init-byte
+   flag-register init-byte
+   H init-byte
+   L init-byte
+   program-counter init-byte
+   stack-counter init-byte})
+
+
+(def zero-bit (byte 0x80))
+(def carry-bit (byte 0x10))
+(def half-carry-bit (byte 0x20))
+(def sub-bit (byte 0x40))
+
+
+(defn get-sub-bit [registers]
   (->
-   (byte 0x10)
-   (bit-and (:reg @reg-f))
+   (flag-register registers)
+   (bit-and sub-bit)
    (bit-shift-right 4)))
 
-
-(defn get-zero-bit []
+(defn get-carry-bit [registers]
   (->
-   (byte 0x80)
-   (bit-and (:reg @reg-f))
+   (flag-register registers)
+   (bit-and carry-bit)
    (bit-shift-right 4)))
 
-(defn get-half-carry-bit []
+(defn get-half-carry-bit [registers]
   (->
-   (byte 0x20)
-   (bit-and (:reg @reg-f))
+   (flag-register registers)
+   (bit-and half-carry-bit)
    (bit-shift-right 4)))
 
-(defn get-sub-bit []
+(defn get-zero-bit [registers]
   (->
-   (byte 0x40)
-   (bit-and (:reg @reg-f))
+   (flag-register registers)
+   (bit-and zero-bit)
    (bit-shift-right 4)))
 
+(defn update-register
+  "Example of return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
+  [value registers switch]
+  (-> registers
+      (assoc switch value)))
 
-(defn set-zero-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x80)
-                      (bit-or (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn set-zero-flag [registers]
+  (-> zero-bit
+      (bit-or (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn set-half-carry-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x20)
-                      (bit-or (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn set-carry-flag [registers]
+  (-> carry-bit
+      (bit-or (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn set-carry-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x10)
-                      (bit-or (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn set-half-carry-flag [registers]
+  (-> half-carry-bit
+      (bit-or (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn set-subtraction-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x40)
-                      (bit-or (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn set-sub-flag [registers]
+  (-> sub-bit
+      (bit-or (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn clear-zero-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x80)
-                      (bit-not)
-                      (bit-and (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn clear-zero-flag [registers]
+  (-> zero-bit
+      (bit-not)
+      (bit-and (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn clear-half-carry-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x20)
-                      (bit-not)
-                      (bit-and (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn clear-carry-flag [registers]
+  (-> carry-bit
+      (bit-not)
+      (bit-and (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn clear-carry-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x10)
-                      (bit-not)
-                      (bit-and (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn clear-half-carry-flag [registers]
+  (-> half-carry-bit
+      (bit-not)
+      (bit-and (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn clear-subtraction-flag! [atom-reg-f]
-  (let [reg-value (-> (byte 0x40)
-                      (bit-not)
-                      (bit-and (:reg @atom-reg-f)))]
-    (swap-byte! atom-reg-f reg-value)))
+(defn clear-sub-flag [registers]
+  (-> sub-bit
+      (bit-not)
+      (bit-and (flag-register registers))
+      (update-register registers flag-register)))
 
-(defn clear-flags! [atom-reg-f]
-  (swap-byte! atom-reg-f (byte 0x00)))
+(defn increment-register
+  "Example usage: (increment-register registers :B)"
+  [registers register]
+  (-> (register registers)
+      (inc)
+      (update-register registers register)))
 
-(defn increment-register! [atom-reg]
-  (->> (inc (:reg @atom-reg))
-       (swap-byte! atom-reg)))
+(defn decrement-register
+  "Example usage: (decrement-register registers :B)"
+  [registers register]
+  (-> (register registers)
+      (dec)
+      (update-register registers register)))
 
-(defn decrement-register! [atom-reg]
-  (->> (dec (:reg @atom-reg))
-       (swap-byte! atom-reg)))
 
 
 
@@ -249,13 +275,13 @@
 
 (defn operation-is-half-carry?
   ([op target size]
-    (case size
-      :byte (byte-operation-is-half-carry? op target)
-      :b16 (b16-operation-is-half-carry? op target)))
+   (case size
+     :byte (byte-operation-is-half-carry? op target)
+     :b16 (b16-operation-is-half-carry? op target)))
   ([op target size value]
-    (case size
-      :byte (byte-operation-is-half-carry? op target value)
-      :b16 (b16-operation-is-half-carry? op target value))))
+   (case size
+     :byte (byte-operation-is-half-carry? op target value)
+     :b16 (b16-operation-is-half-carry? op target value))))
 
 (defn create-virtual-16-bit-reg [r-high r-low]
   (-> (bit-shift-left r-high 8)
@@ -274,91 +300,79 @@
    (bit-and r-16)
    (byte)))
 
-(defn set-16-bit-reg! [b16value atom-reg-high atom-reg-low]
+(defn set-16-bit-reg! [b16value registers reg-high reg-low]
   (let [r-high (get-high-16-bit b16value)
-        r-low (get-low-16-bit b16value)]
-    (swap-byte! atom-reg-high  r-high)
-    (swap-byte! atom-reg-low  r-low)))
+        r-low (get-low-16-bit b16value)
+        update-high (-> (r-high)
+                        (update-register registers reg-high))
+        update-low (-> (r-low)
+                       (update-register update-high reg-low))]
+    update-low))
 
-(defn get-reg-af []
-  (create-virtual-16-bit-reg (:reg @reg-a) (:reg @reg-f)))
-(defn get-reg-hl []
-  (create-virtual-16-bit-reg (:reg @reg-h) (:reg @reg-l)))
-(defn get-reg-bc []
-  (create-virtual-16-bit-reg (:reg @reg-b) (:reg @reg-c)))
-(defn get-reg-de []
-  (create-virtual-16-bit-reg (:reg @reg-d) (:reg @reg-e)))
+(defn increment-register-HL [registers]
+  (-> (HL registers)
+      (inc)
+      (set-16-bit-reg! registers H L)))
 
-(defn set-reg-af! [b16value]
-  (set-16-bit-reg! b16value reg-a reg-f))
-(defn set-reg-hl! [b16value]
-  (set-16-bit-reg! b16value reg-h reg-l))
-(defn set-reg-bc! [b16value]
-  (set-16-bit-reg! b16value reg-b reg-c))
-(defn set-reg-de! [b16value]
-  (set-16-bit-reg! b16value reg-d reg-e))
+(defn decrement-register-HL [registers]
+  (-> (HL registers)
+      (dec)
+      (set-16-bit-reg! registers H L)))
 
-(defn inc-program-counter! []
-  (increment-register! reg-PC))
+(defn get-reg-AF [registers]
+  (create-virtual-16-bit-reg
+   (-> registers
+       (accumulator))
+   (-> registers
+       (flag-register))))
 
-(defn get-reg [switch]
-  (case switch
-    :a (:reg @reg-a)
-    :b (:reg @reg-b)
-    :c (:reg @reg-c)
-    :d (:reg @reg-d)
-    :e (:reg @reg-e)
-    :f (:reg @reg-f)
-    :h (:reg @reg-h)
-    :l (:reg @reg-l)
-    :af (get-reg-af)
-    :hl (get-reg-hl)
-    :bc (get-reg-bc)
-    :de (get-reg-de)
-    :sp (:reg @reg-SP)
-    :pc (:reg @reg-PC)
-    (keyword (str "ErrorNotFound!" switch))))
+(defn get-reg-BC [registers]
+  (create-virtual-16-bit-reg
+   (-> registers
+       (B))
+   (-> registers
+       (C))))
 
-(defn set-reg! [switch value]
-  (case switch
-    :a (swap-byte! reg-a value)
-    :b (swap-byte! reg-b value)
-    :c (swap-byte! reg-c value)
-    :d (swap-byte! reg-d value)
-    :e (swap-byte! reg-e value)
-    :f (swap-byte! reg-f value)
-    :h (swap-byte! reg-h value)
-    :l (swap-byte! reg-l value)
-    :af (set-reg-af! value)
-    :hl (set-reg-hl! value)
-    :bc (set-reg-bc! value)
-    :de (set-reg-de! value)
-    :sp (swap-byte! reg-SP value)
-    :pc (swap-byte! reg-PC value)
-    (keyword (str "ErrorNotFound!" switch))))
+(defn get-reg-DE [registers]
+  (create-virtual-16-bit-reg
+   (-> registers
+       (D))
+   (-> registers
+       (E))))
 
+(defn get-reg-HL [registers]
+  (create-virtual-16-bit-reg
+   (-> registers
+       (H))
+   (-> registers
+       (L))))
 
-(defn set-clear-flags!
+(defn inc-program-counter [regs]
+  (increment-register regs program-counter))
+
+(defn set-byte-if-set-clear
+  "NOTE! bit argument is actually a byte.
+   Example: (byte 0x80) -> zero bit"
+  [_byte bit set]
+  (case set
+    :calc _byte
+    :clear (-> bit
+               (bit-not)
+               (bit-and _byte))
+    :none _byte
+    :set (-> bit
+             (bit-or _byte))))
+
+(defn set-clear-flags
   "Set flags to :none if no changes are made"
-  [zero carry half-carry sub]
-  (when (= zero :set)
-    (set-zero-flag! reg-f))
-  (when (= zero :clear)
-    (clear-zero-flag! reg-f))
-  (when (= carry :set)
-    (set-carry-flag! reg-f))
-  (when (= carry :clear)
-    (clear-carry-flag! reg-f))
-  (when (= half-carry :set)
-    (set-half-carry-flag! reg-f))
-  (when (= half-carry :clear)
-    (clear-half-carry-flag! reg-f))
-  (when (= sub :set)
-    (set-subtraction-flag! reg-f))
-  (when (= sub :clear)
-    (clear-subtraction-flag! reg-f)))
-
-
+  [zero carry half-carry sub registers]
+  (-> registers
+      (flag-register)
+      (set-byte-if-set-clear carry-bit carry)
+      (set-byte-if-set-clear sub-bit sub)
+      (set-byte-if-set-clear zero-bit zero)
+      (set-byte-if-set-clear carry-bit half-carry)
+      (update-register registers flag-register)))
 
 (defn translateNibbleToHexString [nibble]
   (case nibble
@@ -388,27 +402,27 @@
 
 
 
-(defn printAllRegistersAndFlags
+(defn print-reg-status
   "Helper function. For debugging"
-  []
-  (let [a (get-reg :a)
-        b (get-reg :b)
-        c (get-reg :c)
-        d (get-reg :d)
-        e (get-reg :e)
-        f (get-reg :f)
-        h (get-reg :h)
-        l (get-reg :l)
-        af (get-reg :af)
-        bc (get-reg :bc)
-        hl (get-reg :hl)
-        de (get-reg :de)
-        pc (get-reg :pc)
-        sp (get-reg :sp)
-        half-carry (get-half-carry-bit)
-        carry (get-carry-bit)
-        zero (get-zero-bit)
-        sub (get-sub-bit)
+  [registers]
+  (let [a (accumulator registers)
+        b (B registers)
+        c (C registers)
+        d (D registers)
+        e (E registers)
+        f (flag-register registers)
+        h (H registers)
+        l (L registers)
+        af (get-reg-AF registers)
+        bc (get-reg-BC registers)
+        hl (get-reg-HL registers)
+        de (get-reg-DE registers)
+        pc (program-counter registers)
+        sp (stack-counter registers)
+        half-carry (get-half-carry-bit registers)
+        carry (get-carry-bit registers)
+        zero (get-zero-bit registers)
+        sub (get-sub-bit registers)
         s "0x"]
     (println "Register A: " s (byteToHexString a))
     (println "Register B: " s (byteToHexString b))
@@ -424,11 +438,8 @@
     (println "Register DE: " s (b16ToHexString de))
     (println "Register SP: " s (b16ToHexString sp))
     (println "Register PC: " s (b16ToHexString pc))
-    (println "Half-Carry: " half-carry)
-    (println "Carry: " carry)
-    (println "Zero: " zero)
-    (println "Sub: " sub)))
+    (println "Half-Carry: " (> half-carry 0))
+    (println "Carry: " (> carry 0))
+    (println "Zero: " (> zero 0))
+    (println "Sub: " (> sub 0))))
 
-
-
-(printAllRegistersAndFlags)

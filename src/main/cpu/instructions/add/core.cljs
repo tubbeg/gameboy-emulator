@@ -1,34 +1,26 @@
-(ns cpu.instructions.add.core
-  (:require [cpu.instructions.utility :as ut]
-            [cpu.registers.core :as reg]))
+(ns cpu.instructions.add.core)
 
 
-(def op +)
 
-(defn adc [decoder-entry memory]
-  (let [data decoder-entry
-        operation (:op data)
-        flags (:flags data)
-        target-reg (:target data)
-        source-reg (:source data)
-        source-data (ut/get-source-data! source-reg memory)
-        target-data (reg/get-reg target-reg)]
-    (ut/calc-and-set-flags! flags op target-data source-data)
-    (->> (op target-data source-data (reg/get-carry-bit)) ;note the carry bit
-         (reg/set-reg! target-reg))))
 
-(defn add [decoder-entry memory]
-  (let [data decoder-entry
-        operation (:op data)
-        flags (:flags data)
-        target-reg (:target data)
-        source-reg (:source data)
-        ; there's a big question of what happens with carry
-        ; and half carry when adding 16 bit data
-        ; when should overflow flag be set
-        ; UPDATE: made some changes that might work. Needs testing
-        source-data (ut/get-source-data! source-reg memory)
-        target-data (reg/get-reg target-reg)]
-    (ut/calc-and-set-flags! flags op target-data source-data)
-    (->> (op target-data source-data)
-         (reg/set-reg! target-reg))))
+(comment
+  "Types of add:
+   add A reg8
+   add A n8
+   add A HL-pointer
+   add HL reg16
+   "
+  )
+
+
+
+(defn is-reg8 [])
+(defn is-n8 [])
+(defn is-HL-pointer [])
+(defn is-reg16 [])
+
+(defn add-instruction 
+  "Returns {:memory ... :registers ... :halt false}"
+  [entry memory registers]
+  (let [halt false]
+    ))
