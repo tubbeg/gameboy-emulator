@@ -84,6 +84,18 @@
    program-counter init-byte
    stack-pointer init-byte})
 
+(defn translate-virtual-to-regs
+  "-> :AF -> [:A :F]"
+  [virtual16b-reg]
+  (cond
+    (= AF virtual16b-reg) [accumulator flag-register]
+    (= DE virtual16b-reg) [D E]
+    (= BC virtual16b-reg) [B C]
+    (= HL virtual16b-reg) [H L]
+    :else (do (println "ERROR-UNKOWN-VIRTUAL-REGISTER!"
+                       virtual16b-reg)
+              :ERROR-REGISTER-16B)))
+
 
 (defn is-register [reg]
   (-> reg
@@ -100,6 +112,9 @@
     (= reg flag-register) true
     (= reg H) true
     (= reg L) true
+    (= reg program-counter) true ; they are actually 16 bit
+    (= reg stack-pointer) true ; but these are placed along with
+    ; the other registers. All other 16b regs are virtual
     :else false))
 
 (defn is-16bit-register [reg]
@@ -108,8 +123,6 @@
     (= reg BC) true
     (= reg DE) true
     (= reg HL) true
-    (= reg program-counter) true
-    (= reg stack-pointer) true
     :else false))
 
 (def zero-bit (byte 0x80))
@@ -193,20 +206,20 @@
       (update-register registers flag-register)))
 
 (defn increment-register
-  "Example usage: (increment-register registers :B)"
+  "Example usage: (increment-register registers :B).
+   Return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
   [registers register]
   (-> (register registers)
       (inc)
       (update-register registers register)))
 
 (defn decrement-register
-  "Example usage: (decrement-register registers :B)"
+  "Example usage: (decrement-register registers :B).
+     Return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
   [registers register]
   (-> (register registers)
       (dec)
       (update-register registers register)))
-
-
 
 
 ; I have not figured out what happens when
@@ -338,12 +351,12 @@
    (byte)))
 
 (defn set-16-bit-reg
-  [b16value registers reg-high reg-low]
+  [b16value registers reg-high-sw reg-low-sw]
   (let [r-high (get-high-16-bit b16value)
         r-low (get-low-16-bit b16value)]
     (as-> r-high $
-      (update-register $ registers reg-high)
-      (update-register r-low $ reg-low))))
+      (update-register $ registers reg-high-sw)
+      (update-register r-low $ reg-low-sw))))
 
 (defn increment-register-HL [registers]
   (-> (HL registers)
@@ -458,6 +471,52 @@
         s (str (byteToHexString h) (byteToHexString l))]
     s))
 
+(defn decrement-16b-register 
+  "Example of return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
+  [regs reg]
+  (let [data (-> reg
+                 (get-virtual16b-reg regs)
+                 (dec))
+        [high low] (translate-virtual-to-regs reg)
+        update-regs (set-16-bit-reg data regs high low)]
+    update-regs))
+
+(defn increment-16b-register 
+  "Example of return data: {:A (byte 0xFF) :B (byte 0xFE) ...}"
+  [regs reg ]
+  (let [data (-> reg
+                 (get-virtual16b-reg regs)
+                 (inc))
+        [high low] (translate-virtual-to-regs reg)
+        update-regs (set-16-bit-reg data regs high low)]
+    update-regs))
+
+(defn inc-dec-16-if-true [inc? dec? reg registers]
+  (if inc?
+    (increment-16b-register  registers reg)
+    (if dec?
+      (decrement-16b-register  registers reg)
+      registers)))
+
+(defn inc-dec-8-if-true [inc? dec? reg registers]
+  (if inc?
+    (increment-register  registers reg)
+    (if dec?
+      (decrement-register  registers reg)
+      registers)))
+
+(defn inc-dec-reg-if-true [inc? dec? reg registers]
+  (cond
+    (is-16bit-register reg) (inc-dec-16-if-true inc?
+                                                dec?
+                                                reg
+                                                registers)
+    (is-8bit-register reg) (inc-dec-8-if-true inc?
+                                               dec?
+                                               reg
+                                               registers)
+    :else (do (println "UNKOWN REGISTER TYPE: " reg)
+              :ERROR-REGISTER)))
 
 
 (defn print-reg-status

@@ -61,5 +61,19 @@ Thus for example ADD A, B has the alternative mnemonic ADD B, and CP A, $F has t
       (println "Entry: " (k opcodes)))))
 
 (get-hex-instruction (byte 0x86))
-(byte 0x38)
+
+(defn get-all-reg []
+  (->
+   (loop [i 0
+          coll []]
+     (case i
+       (byte 0xFF) coll
+       (let [instr (get-hex-instruction i)
+             a (:reg (:target instr))
+             b (:reg (:source instr))
+             c1 (conj coll a)
+             c2 (conj c1 b)]
+         (recur (inc i) c2))))
+   (distinct)))
+
 ;(get-prefix-instruction (byte 0xFF))

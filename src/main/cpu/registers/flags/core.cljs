@@ -44,7 +44,7 @@
     (or (is-carry-8bit-2operands? byte1low byte2low op-fn)
         (is-carry-8bit-2operands? byte1high byte2high op-fn))))
 
-(defn create-flag-record-sub-add-adc-8 [z hc c]
+(defn create-flag-record-sbc-sub-add-adc-8 [z hc c]
   (let [zero (if-true-set z)
         half (if-true-set hc)
         carry (if-true-set c)
@@ -64,16 +64,6 @@
         half (if-true-set hc)
         carry (if-true-set c)]
     (create-flag-record zero half carry sub)))
-
-;edge case
-(defn create-flag-record-sbc-8 [source-reg z hc c]
-  (let [zero (if-true-set z)
-        half (if-true-set hc)
-        carry (if-true-set c)]
-    {:zero zero
-     :half-carry half
-     :carry (if (= source-reg reg/accumulator) :none carry)
-     :sub :clear}))
 
 
 ; OR - XOR ---------------------------------
@@ -125,9 +115,18 @@
   (create-none-flags))
 
 
-; -----------------------------------------
 
 
+; CP --------------------------------------
+
+(defn create-flag-record-cp-8 [z h src-reg]
+  (let [zero (if-true-set z)
+        half (if-true-set h)
+        carry :clear
+        sub :set]
+    (if (= src-reg reg/accumulator) 
+      (create-flag-record :set :clear :clear :set)
+      (create-flag-record zero half carry sub))))
 
 
 ; -----------------------------------------
