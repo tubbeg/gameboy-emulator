@@ -4,14 +4,13 @@
 
 
 
+
 (defn error-msg [& args]
   (println "CPU ERROR!" args)
   :ERROR!)
 
-
 (defn create-mem-reg-record [regs halt memory]
   {:memory memory :registers regs :halt halt})
-
 
 (defn entry-source-is-pointer [entry]
   (-> entry
@@ -38,20 +37,27 @@
       (get-source-reg)
       (= reg/n8)))
 
+
+(defn create-data-record
+  "Returns {:data ... :registers ...}"
+  [data registers]
+  {:data data :registers registers})
+
 (defn read-and-increment-pc
-  "Returns {:byte ... :registers ...}"
+  "Returns {:data ... :registers ...}"
   [memory registers]
-  (let [pc (reg/inc-program-counter registers)
-        _byte  (bus/read-byte memory pc)
-        regs (reg/update-register pc
-                                  registers
-                                  reg/program-counter)]
-    {:byte _byte :registers regs}))
+  (let [regs-update (reg/inc-program-counter registers)
+        adress (reg/program-counter regs-update)
+        _byte  (bus/read-byte memory adress)]
+    (create-data-record _byte regs-update)))
 
-
-(defn read-byte-HL-pointer [memory registers]
-  (->> (reg/HL registers)
-       (bus/read-byte memory)))
+(defn read-byte-HL-pointer
+  "Returns {:data ... :registers ...}"
+  [memory registers]
+  (as-> registers $
+    (reg/HL $)
+    (bus/read-byte memory $)
+    (create-data-record $ registers)))
 
 (defn source-is-8bit-reg [entry]
   (-> entry
@@ -86,83 +92,15 @@
        (entry-source-is-pointer entry)))
 
 (defn target-is-SP [entry]
-  (-> entry
-      (:target)
-      (:reg)
-      (= reg/stack-pointer)))
-
-(defn missing-instr-error [msg]
-  (throw (new js/Error (str "Instruction " msg " Not Found!"))))
+   (-> entry
+       (:target)
+       (:reg)
+       (= reg/stack-pointer)))
 
 
-(defn is-zero [num]
-  (= num 0))
-(defn is-not-zero [num]
-  (not= num 0))
+(defn missing-instr-error [& args]
+  (throw (new js/Error (str "Instruction " args " Not Found!"))))
 
-(defn determine-size [target]
-  (case target
-    reg/HL :b16
-    reg/AF :b16
-    reg/BC :b16
-    reg/DE :b16
-    reg/stack-counter :b16
-    reg/program-counter :b16
-    :byte))
-
-(defn determine-zero
-  ([op target flag]
-   (letfn [(clear-set [op target]
-             (if (is-zero (op target))
-               :set
-               :clear))]
-     (case flag
-       :calc (clear-set op target)
-       flag)))
-  ([op target flag value]
-   (letfn [(clear-set [op target value]
-             (if (is-zero (op target value))
-               :set
-               :clear))]
-     (case flag
-       :calc (clear-set op target value)
-       flag))))
-
-(defn determine-carry
-  ([op target flag]
-   (letfn [(car [op target size]
-             (if (reg/operation-is-carry? op target size)
-               :set
-               :clear))]
-     (case flag
-       :calc (car op target (determine-size target))
-       flag)))
-  ([op target flag value]
-   (letfn [(car [op target value size]
-             (if (reg/operation-is-carry? op target size value)
-               :set
-               :clear))]
-     (case flag
-       :calc (car op target value (determine-size target))
-       flag))))
-
-(defn determine-half-carry
-  ([op target flag]
-   (letfn [(hcar [op target size]
-             (if (reg/operation-is-half-carry? op target size)
-               :set
-               :clear))]
-     (case flag
-       :calc (hcar op target (determine-size target))
-       flag)))
-  ([op target flag value]
-   (letfn [(hcar [op target value size]
-             (if (reg/operation-is-half-carry? op target  size value)
-               :set
-               :clear))]
-     (case flag
-       :calc (hcar op target value (determine-size target))
-       flag))))
 
 (defn NotYetImplemented [& args]
   (println args)
@@ -173,4 +111,92 @@
   (cond
     (= entry nil) true
     (= (:op entry) nil) true
+    (= (:op entry) :none) true
     :else false))
+
+(defn get-src-data
+  "Returns {:data ... :registers ...}"
+  [entry memory registers src-type]
+  (case src-type
+    :reg8  (-> entry
+               (get-source-reg)
+               (registers)
+               (create-data-record registers))
+    :n8 (read-and-increment-pc memory registers)
+    :e8 (read-and-increment-pc memory registers)
+    :HL-pointer (read-byte-HL-pointer memory registers)
+    :reg16 (-> entry
+               (get-source-reg)
+               (reg/get-virtual16b-reg registers)
+               (create-data-record registers))
+    (do
+      (error-msg "Unkown switch: " src-type "Entry: " entry)
+      :ERROR-UNKOWN-SWITCH!)))
+
+
+(defn get-targ-data
+  "Returns {:data ... :registers ...}"
+  [entry memory registers sw]
+  (case sw
+    :reg8  (-> entry
+               (get-target-reg)
+               (registers)
+               (create-data-record registers))
+    :reg16 (-> entry
+               (get-target-reg)
+               (reg/get-virtual16b-reg registers)
+               (create-data-record registers))
+    :HL-pointer (read-byte-HL-pointer memory registers)
+    (do
+      (error-msg "Unkown switch: " sw "Entry: " entry)
+      :ERROR-UNKOWN-SWITCH!)))
+
+(defn update-target-reg [data flags memory target-reg regs]
+  (-> data
+      (reg/update-register regs target-reg)
+      (reg/set-clear-flags flags)
+      ; HALT flag will always be false for all ops
+      ; except halt-op
+      (create-mem-reg-record false memory)))
+
+(defn inc-hl-if-true [regs inc?]
+  (if inc?
+    (reg/increment-register-HL regs)
+    regs))
+
+(defn dec-hl-if-true [regs dec?]
+  (if dec?
+    (reg/increment-register-HL regs)
+    regs))
+
+(defn update-target-memory
+  [data adress flags memory regs inc? dec?]
+  (let [mem (bus/set-data-in-memory adress memory data)]
+    (-> regs
+        (dec-hl-if-true dec?)
+        (inc-hl-if-true inc?)
+        (reg/set-clear-flags flags)
+        (create-mem-reg-record false mem))))
+
+(defn update-target
+  "The vast majority of ops will update registers.
+   Returns mem-reg record:
+   {:memory memory :registers regs :halt halt}"
+  [data entry flags memory regs inc? dec? sw]
+  (let [target-reg (get-target-reg entry)]
+    (case sw
+      :memory
+      (update-target-memory data
+                            (target-reg regs)
+                            flags
+                            memory
+                            regs
+                            inc?
+                            dec?)
+      :reg (update-target-reg data
+                              flags
+                              memory
+                              target-reg
+                              regs)
+      (do (error-msg "Unkown switch: " sw)
+          :ERROR-UNKOWN-SWITCH!))))

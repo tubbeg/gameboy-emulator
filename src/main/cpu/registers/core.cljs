@@ -91,7 +91,6 @@
       (not= nil)))
 
 (defn is-8bit-register [reg]
-  (println "Checking reg" reg)
   (cond
     (= reg accumulator) true
     (= reg B) true
@@ -104,7 +103,6 @@
     :else false))
 
 (defn is-16bit-register [reg]
-  (println "Checking reg" reg)
   (cond
     (= reg AF) true
     (= reg BC) true
@@ -339,24 +337,23 @@
    (bit-and r-16)
    (byte)))
 
-(defn set-16-bit-reg! [b16value registers reg-high reg-low]
+(defn set-16-bit-reg
+  [b16value registers reg-high reg-low]
   (let [r-high (get-high-16-bit b16value)
-        r-low (get-low-16-bit b16value)
-        update-high (-> (r-high)
-                        (update-register registers reg-high))
-        update-low (-> (r-low)
-                       (update-register update-high reg-low))]
-    update-low))
+        r-low (get-low-16-bit b16value)]
+    (as-> r-high $
+      (update-register $ registers reg-high)
+      (update-register r-low $ reg-low))))
 
 (defn increment-register-HL [registers]
   (-> (HL registers)
       (inc)
-      (set-16-bit-reg! registers H L)))
+      (set-16-bit-reg registers H L)))
 
 (defn decrement-register-HL [registers]
   (-> (HL registers)
       (dec)
-      (set-16-bit-reg! registers H L)))
+      (set-16-bit-reg registers H L)))
 
 (defn get-reg-AF [registers]
   (create-virtual-16-bit-reg
@@ -400,33 +397,39 @@
     AF (get-reg-AF registers)
     BC (get-reg-BC registers)
     DE (get-reg-DE registers)
-    HL (get-reg-HL registers)))
+    HL (get-reg-HL registers)
+    (do (println "REGISTERS: " reg " IS UNKOWN")
+        :ERROR!-UNKOWN-16B-REG)))
 
 (defn inc-program-counter [regs]
   (increment-register regs program-counter))
+
 
 (defn set-byte-if-set-clear
   "NOTE! bit argument is actually a byte.
    Example: (byte 0x80) -> zero bit"
   [_byte bit set]
   (case set
-    :calc _byte
-    :clear (-> bit
-               (bit-not)
-               (bit-and _byte))
+    :clear  (-> bit
+                (bit-not)
+                (bit-and _byte))
     :none _byte
     :set (-> bit
-             (bit-or _byte))))
+             (bit-or _byte))
+    (do
+      (println "ERROR: " set)
+      :ERROR!-FAULTY-FLAG)))
 
 (defn set-clear-flags
-  "Set flags to :none if no changes are made"
-  [zero carry half-carry sub registers]
+  "Flags example: {:zero :set :sub :none ...}
+   Set flags to :none if no changes are made"
+  [ registers flags]
   (-> registers
       (flag-register)
-      (set-byte-if-set-clear carry-bit carry)
-      (set-byte-if-set-clear sub-bit sub)
-      (set-byte-if-set-clear zero-bit zero)
-      (set-byte-if-set-clear carry-bit half-carry)
+      (set-byte-if-set-clear carry-bit (:carry flags))
+      (set-byte-if-set-clear sub-bit (:sub flags))
+      (set-byte-if-set-clear zero-bit (:zero flags))
+      (set-byte-if-set-clear half-carry-bit (:half-carry flags))
       (update-register registers flag-register)))
 
 (defn translateNibbleToHexString [nibble]

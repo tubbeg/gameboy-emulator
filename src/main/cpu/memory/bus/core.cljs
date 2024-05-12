@@ -9,28 +9,43 @@
   (println "ERROR! NOT FOUND MEMORY" args)
   :ERROR-MEMORY-BUS)
 
-(defn error-check [coll]
-  (case coll
-    nil (error-msg coll)
-    (if (= (first coll) nil)
-      (error-msg nil)
-      (first coll))))
 
-(def adress :adress)
+(defn create-adress [num]
+  (->> num
+      (str "adress")
+      (keyword)))
 
+(defn error-memory [& args]
+  (println "ERROR IN MEMORY: " args)
+  :ERROR-MEMORY)
 
-(defn read-byte [memory _adress] ;index should be 16-bit
-  (-> (filter #(= (adress %) _adress) memory)
-      (error-check)))
-
-(defn create-data [data _adress]
-  {adress _adress :data data})
+(defn read-byte [memory _adress] 
+  (let [max-size (:size memory)
+        def (:init memory)
+        storage (:data memory)
+        data (->  (-> _adress
+                      (create-adress)
+                      (storage)))]
+    (cond
+      (= storage nil) (error-memory :MISSING-DATA-NIL)
+      (> _adress max-size) (error-memory :MAX-SIZE)
+      (= nil data) def
+      :else data)))
 
 (defn create-memory [size]
-  (for [i (range size)]
-    (create-data 0 i)))
+  {:size size
+   :init 0
+   :data {}})
 
-(defn set-data-in-memory [_adress memory data]
-  (map #(case (adress %)
-          _adress (create-data _adress data)
-          %) memory))
+(defn set-data-in-memory
+  "Returns memory"
+  [_adress memory data]
+  (let [max-size (:size memory)
+        storage (:data memory)
+        set-addr (create-adress _adress) 
+        updated-storage (assoc storage set-addr data)
+        updated-memory (assoc memory :data updated-storage)] 
+    (cond
+      (= storage nil) (error-memory :MISSING-DATA-NIL)
+      (> _adress max-size) (error-memory :MAX-SIZE) 
+      :else updated-memory)))

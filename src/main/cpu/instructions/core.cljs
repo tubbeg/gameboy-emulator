@@ -7,49 +7,35 @@
             [cpu.decoder.core :as dec]))
 
 
-
-(dec/get-hex-instruction (byte 0xB1))
-
-
-
-;(reg/set-reg! :A 0)
-;(reg/set-reg! :C (byte 0xF0))
-;(reg/set-reg! :HL 15)
-(dec/get-hex-instruction (byte 0xB1))
-;(-> (dec/get-hex-instruction (byte 0xB1))
-;    (ut/cpu-instr dummyMemory))
-
-;(reg/print-reg-status)
-(byte 0x01E0)
+(comment
+(defn map-byte-to-entry [memory registers]
+  (->> (reg/program-counter registers)
+       (bus/read-byte memory)
+      ; (codes/get-hex-instruction)
+       )))
 
 
 
-(def instructions
-  {:ADD add/add-instruction 
-   :HALT misc/halt
-   :STOP ut/NotYetImplemented
-   :NOP ut/NotYetImplemented
-   :LD ut/NotYetImplemented
-   :default (fn [& args] (ut/missing-instr-error (first args)))})
+  (defn run-instruction [entry memory registers]
+    (case (:op entry)
+      :ADD (add/add-instruction entry memory registers)
+      (ut/missing-instr-error entry)))
 
+(defn execute-instruction [entry memory registers]
+  (if (ut/is-invalid-entry entry)
+    (ut/error-msg "Execute instruction" entry)
+    (run-instruction entry memory registers)))
 
-(defn get-instruction [entry]
-  (let [op (:op entry)]
-    (case op
-      nil (ut/error-msg entry)
-      (op instructions))))
-
-
-(def e (-> (byte 0x83)
+(def e (-> (byte 0xE8)
            (dec/get-hex-instruction)))
 
-
 (def regs (as-> reg/registers $ 
-            (reg/update-register (byte 0xFE) $ reg/accumulator)
-            (reg/update-register (byte 0x0F $ reg/))))
-
-(def mem (bus/create-memory (byte 0xFFFF)))
-
-(def i (get-instruction e))
-
-(println (:registers (i e mem regs)))
+            (reg/update-register (byte 0xFF) $ reg/accumulator)
+            (reg/update-register (byte 0xFF) $ reg/E)))
+  
+(def mem (as-> (bus/create-memory (byte 0xFFFF)) m
+           (bus/set-data-in-memory 0 m 30)
+           (bus/set-data-in-memory 1 m 30)))
+  
+(def res (execute-instruction e mem regs))
+(println (:registers res))
